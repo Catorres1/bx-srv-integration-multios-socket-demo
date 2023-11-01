@@ -1,0 +1,56 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "es2017",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@/*": ["src/*"],
+
+      "#commons": ["src/commons"],
+      "#commons/*": ["src/commons/*"],
+
+      "#controllers": ["src/controllers"],
+      "#controllers/*": ["src/controllers/*"],
+
+      "#events": ["src/events"],
+      "#events/*": ["src/events/*"],
+
+      "#interceptors": ["src/interceptors"],
+      "#interceptors/*": ["src/interceptors/*"],
+
+      "#middlewares": ["src/middlewares"],
+      "#middlewares/*": ["src/middlewares/*"],
+
+      "#modules": ["src/modules"],
+      "#modules/*": ["src/modules/*"],
+
+      "#pipes": ["src/pipes"],
+      "#pipes/*": ["src/pipes/*"],
+
+      "#schemas": ["src/schemas"],
+      "#schemas/*": ["src/schemas/*"],
+
+      "#services": ["src/services"],
+      "#services/*": ["src/services/*"],
+
+      "#utils": ["src/utils"],
+      "#utils/*": ["src/utils/*"]
+    }
+  },
+  "include": ["./src/**/*", "./test/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,132 @@
+name: MultiOS Emission - NodeJS on AWS EKS
+
+on:
+  push:
+    branches: [development, staging, production]
+    paths-ignore:
+      - '.github/workflows/**'
+
+  workflow_dispatch:
+
+jobs:
+  validate-oas:
+    runs-on: ubuntu-latest
+    container:
+      image: redocly/cli:1.2.0
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+      - name: Validate open api spec (redoc CLI)
+        run: npx @redocly/cli lint oas/oas.yaml
+
+  api-ui:
+    uses: Blue-Express/bx_templates/.github/workflows/build-api-ui.yaml@blue
+    needs: validate-oas
+    with:
+      environment: development #${{ github.ref_name }}
+      namespace: dev-ns-integration # Reemplazar {namespace} por el {name} del NS
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID  }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY  }}
+      AWS_REGION: ${{ secrets.AWS_REGION  }}
+      AWS_ASSUME_ROLE: ${{ secrets.AWS_ASSUME_ROLE }}
+      TOKEN_REPO_TEMPLATE: ${{ secrets.REPO_HELM_ACCESS }}
+
+  sonar:
+    runs-on: ubuntu-latest
+    needs: validate-oas
+    environment:
+      name: "development"
+      url: https://sonarqube.infra.blue.cl/dashboard?id=${{ github.event.repository.name }}
+    steps:      
+      - uses: actions/checkout@v3
+      - name: SonarQube Scan
+        uses: Blue-Express/sonar-scan-action@master
+
+        id: check
+        with:
+          sonarqube_url: ${{ secrets.SONARQUBE_DEV_URL }}
+          sonarqube_token: ${{ secrets.SONARQUBE_DEV_TOKEN }}
+          projectKey: ${{ github.event.repository.name }}
+
+  build:
+    uses: Blue-Express/bx_templates/.github/workflows/build-and-push-nodejs.yml@blue
+    needs: [api-ui, sonar]
+    with:
+      install-pkg: 'npm'
+      environment: ${{ github.ref_name }}
+      node-version: 18.x
+
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID  }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY  }}
+      AWS_REGION: ${{ secrets.AWS_REGION  }}
+      AWS_ASSUME_ROLE: ${{ secrets.AWS_ASSUME_ROLE }}
+
+  deploy:
+    uses: Blue-Express/bx_templates/.github/workflows/deploy-helm-node-api.yml@blue
+    needs: build
+    with:
+      environment: ${{ github.ref_name }}
+      namespace: ns-integration # Reemplazar al correspondiente
+      path-values: helm/values-${{ github.ref_name }}.yml
+      base-path: /api/integration/multios/emission/v1 # Reemplazar
+      liveness-path: /health/liveness
+      liveness-initialDelay: '120'
+      liveness-periodoSeconds: '120'
+      liveness-timeoutSeconds: '120'
+      ingress-enabled: true # true (expuesto) - false (interno)
+      ingress-groupname: ingrz-integration # Reemplazar {namespace} por el {name} del NS
+      # Recursos Base
+      cpu-base: '10m'
+      memory-base: '64Mi'
+      # Límite Recursos Default
+      cpu-limit: '700m'
+      memory-limit: '350Mi'
+      replicas: '1'
+      # Límite Recursos Dev
+      cpu-limit-dev: '700m'
+      memory-limit-dev: '350Mi'
+      replicas-dev: '1'
+      # Límite Recursos Qa
+      cpu-limit-qa: '700m'
+      memory-limit-qa: '350Mi'
+      replicas-qa: '1'
+      # Límite Recursos Prod
+      cpu-limit-prod: '700m'
+      memory-limit-prod: '350Mi'
+      replicas-prod: '1'
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_KUBECONFIG: ${{ secrets.AWS_KUBECONFIG }}
+      TOKEN_REPO_TEMPLATE: ${{ secrets.REPO_HELM_ACCESS }}
+      SECRETOS: ${{ toJSON(secrets) }}
+      AWS_ASSUME_ROLE: ${{ secrets.AWS_ASSUME_ROLE }}
+
+  api-mgnt:
+    uses: Blue-Express/bx_templates/.github/workflows/kong-v2.yml@blue
+    needs: deploy
+    with:
+      environment: ${{ github.ref_name }}
+      kong-srv-protocol: '"http"'
+      kong-srv-host: ${{ needs.deploy.outputs.ingress }}
+      kong-srv-port: '80'
+      kong-cnsr: 'front-cnsr'
+      kong-srv-path: '/api/integration/multios/emission/v1' # Reemplazar con el mismo del {base-path}
+      kong-rts-protocol: '"http","https"'
+      kong-rts-path: '/api/integration/multios/emission/v1' # Reemplazar con el mismo del {kong-srv-path} (expuesta a inet)
+      kong-rts-methods: '"GET", "POST", "HEAD", "OPTIONS", "CONNECT", "PUT", "DELETE"'
+      kong-plugins: '"key-auth" "cors"' #"jwt-keycloak"
+      #kong-plugins: '"cors"'
+      kong-cors-dev: '"http://localhost:3000","https://localhost:3000","https://ecommerce.dev.blue.cl", "https://dev.blue.cl","https://multi-os-masivo.dev.blue.cl","https://multi-os.dev.blue.cl","https://*.myvtex.com","https://iodev--bluex.myvtex.com","https://integrations-ecommerce.dev.blue.cl"'
+      kong-cors-qa: '"https://ecommerce.qa.blue.cl","http://qa.blue.cl","https://qa.blue.cl","https://multi-os-masivo.qa.blue.cl","https://multi-os.qa.blue.cl","https://*.myvtex.com","https://integrations-ecommerce.qa.blue.cl"'
+      kong-cors-prod: '"https://ecommerce.blue.cl","http://blue.cl","https://blue.cl","https://multi-os-masivo.blue.cl/","https://multi-os.blue.cl","https://*.myvtex.com","https://ecommerce.blue.cl","https://integrations-ecommerce.blue.cl"'
+      kong-cors-methods: '"GET", "POST", "DELETE", "PATCH", "PUT", "HEAD", "OPTIONS", "TRACE", "CONNECT"'
+      #kong-jwt-allowed-iss: '/auth/realms/universal-app' # Si se encuentra habilitado {kong-plugins:  '"jwt-keycloak"}, se debe definir.
+    secrets:
+      TOKEN_REPO_TEMPLATE: ${{ secrets.REPO_HELM_ACCESS  }}
+      KONG_HOST: ${{ secrets.KONG_HOST }}
+      AWS_REGION: ${{ secrets.AWS_REGION  }}
+      KEYCLOAK_HOST: ${{ secrets.KEYCLOAK_HOST  }}

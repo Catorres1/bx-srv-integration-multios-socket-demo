@@ -1,0 +1,89 @@
+openapi: 3.0.3
+info:
+  title: Swagger Integration Multios Socket - OpenAPI 3.0
+  description: |-
+    Multios Project for Blue Express.
+  contact:
+    email: john.doe@mail.com
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.1
+externalDocs:
+  description: Docs
+  url: http://swagger.io
+servers:
+  - url: https://devapi.multibulto.cl/api/integration/multios/websocket/v1
+tags:
+  - name: webhook
+    description: Access to Webhook
+    externalDocs:
+      description: Find out more
+      url: http://swagger.io
+security:
+  - JWT: []
+paths:
+  /webhook:
+    post:
+      tags:
+        - webhook
+      summary: emit emission status
+      description: webhook of emission status [unitary / massive], emit socket event to frontend
+      operationId: webhookEmissionStatus
+      requestBody:
+        $ref: '#/components/requestBodies/EmissionWebhookStatusDto'
+      responses:
+        '201':
+          $ref: '#/components/responses/EmissionWebhookStatus201'
+        '400':
+          description: No data found
+components:
+  securitySchemes:
+    JWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  requestBodies:
+    EmissionWebhookStatusDto:
+      description: body object of emission status [unitary / massive]
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+                example: true
+              idEmission:
+                type: string
+                example: 653fd21242492547d88c4d9d
+              osParent:
+                type: string
+                nullable: true
+                example: '8000295321'
+              osChild:
+                type: array
+                items:
+                  type: string
+                example: ['8000295310']
+              massiveUUID:
+                type: string
+                example: 652fef05b65bc4fe2c4f820d
+              massiveReference:
+                type: string
+                example: '1'
+
+  responses:
+    EmissionWebhookStatus201:
+      description: return the identifier of the emission [unitary / massive]
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                example: success
+              identifier:
+                type: string
+                example: 652fef05b65bc4fe2c4f820d

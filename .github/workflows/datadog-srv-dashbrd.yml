@@ -1,0 +1,19 @@
+name: Datadog Dashboard
+on:
+   workflow_run:
+     workflows: [MultiOS Emission - NodeJS on AWS EKS]    # Reemplazar al correspondiente
+     types: [completed]
+
+   workflow_dispatch:
+
+jobs:
+  datadog:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    uses: Blue-Express/bx_templates/.github/workflows/dd-dashboard-srv.yml@blue
+    with:
+      environment: ${{ github.event.workflow_run.head_branch }}
+    secrets:
+      DD_API_KEY: ${{ secrets.DD_API_KEY }}
+      DD_APPLICATION_KEY: ${{ secrets.DD_APPLICATION_KEY }}
+      TOKEN_REPO_TEMPLATE: ${{ secrets.REPO_HELM_ACCESS }}
+      AWS_KUBECONFIG: ${{ secrets.AWS_KUBECONFIG }}
